@@ -5,17 +5,25 @@
 param location string = resourceGroup().location
 @description('Prefix for all resource names. Must be at least 5 chars to satisfy ACR naming.')
 @minLength(5)
-param namePrefix string = 'glossa'
+param namePrefix string = 'glossary'
 param enableCosmosFreeTier bool = true // Free Tier: only once per subscription; set false if already consumed elsewhere
-param containerImage string
-param aiApiBaseUrl string = ''
-param aiUseProxy bool = true
+// containerImage removed (troubleshoot minimal infra)
 param cosmosDbName string = 'glossary'
 param cosmosContainerName string = 'terms'
 @description('Provisioned throughput (RU/s) for the container when NOT in serverless mode. Kept <= 400 to stay within Free Tier 1000 RU allowance.')
 param cosmosContainerThroughput int = 400
 @description('If true, creates account in serverless mode (no provisioned RU; pay per request). Leave false to use provisioned RU covered by Free Tier.')
 param useServerless bool = false
+
+// ---- Azure OpenAI + Function App (Glossary Explanation) additions ----
+@description('OpenAI account name (Cognitive Services). Must be globally unique-ish within subscription.')
+param openAiAccountName string = '${namePrefix}aoai'
+@description('Deployment name for the model.')
+param openAiDeploymentName string = 'glossary-model'
+@description('Whether to disable local auth (key based) on OpenAI account (keep false until MI ready).')
+param openAiDisableLocalAuth bool = false
+// (Removed Function & Container App for staged troubleshooting)
+
 
 // ACR (Basic)
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
@@ -49,7 +57,7 @@ resource cae 'Microsoft.App/managedEnvironments@2024-03-01' = {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
   customerId: logws.properties.customerId
-  sharedKey: listKeys(logws.id, '2022-10-01').primarySharedKey
+  sharedKey: listKeys(logws.id, '2022-10-01').primarySharedKey // keep listKeys (log analytics doesn't expose keys via ref)
       }
     }
   }
@@ -120,90 +128,35 @@ resource sqlContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/contai
 }
 
 // Container App pulling from ACR. (Assumes image already pushed.)
-@description('Cosmos connection key; supply via secure parameter when deploying (not stored in template).')
-@secure()
-param cosmosPrimaryKey string
+// Removed unused params (function/container toggles) during troubleshooting
 
-resource app 'Microsoft.App/containerApps@2024-03-01' = {
-  name: '${namePrefix}app'
+// (Container App env definitions removed for minimal deployment)
+
+// (Container App & role assignment removed)
+
+// (Container App output removed)
+output cosmosEndpoint string = cosmos.properties.documentEndpoint
+
+// ---------------- Azure OpenAI & Function App Section ----------------
+// OpenAI account (Cognitive Services) + model deployment conditional
+resource openai 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
+  name: openAiAccountName
+  kind: 'OpenAI'
   location: location
+  sku: {
+    name: 'S0'
+  }
   properties: {
-    managedEnvironmentId: cae.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8080
-        transport: 'Auto'
-      }
-      registries: [
-        {
-          server: acr.properties.loginServer
-          identity: ''
-        }
-      ]
-      secrets: [
-        {
-          name: 'cosmos-key'
-          value: cosmosPrimaryKey
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: 'gateway'
-          image: '${acr.properties.loginServer}/${containerImage}'
-          resources: {
-            cpu: 1
-            memory: '1Gi'
-          }
-          env: [
-            {
-              name: 'PORT'
-              value: '3001'
-            }
-            {
-              name: 'PROXY_PORT'
-              value: '3002'
-            }
-            {
-              name: 'STATIC_PORT'
-              value: '8080'
-            }
-            {
-              name: 'COSMOS_ENDPOINT'
-              value: cosmos.properties.documentEndpoint
-            }
-            {
-              name: 'COSMOS_DB_NAME'
-              value: cosmosDbName
-            }
-            {
-              name: 'COSMOS_CONTAINER_NAME'
-              value: cosmosContainerName
-            }
-            {
-              name: 'COSMOS_KEY'
-              secretRef: 'cosmos-key'
-            }
-            {
-              name: 'AI_USE_PROXY'
-              value: string(aiUseProxy)
-            }
-            {
-              name: 'AI_API_BASE_URL'
-              value: aiApiBaseUrl
-            }
-          ]
-        }
-      ]
-      scale: {
-        minReplicas: 0
-        maxReplicas: 3
-      }
-    }
+    publicNetworkAccess: 'Enabled'
+    disableLocalAuth: openAiDisableLocalAuth
   }
 }
 
-output containerAppFqdn string = app.properties.configuration.ingress.fqdn
-output cosmosEndpoint string = cosmos.properties.documentEndpoint
+// NOTE: Model deployments for Azure OpenAI currently require REST/CLI after account creation.
+// We expose needed output variables for deployment pipeline step (az cognitiveservices account deployment create ...)
+
+// (Function resources removed for troubleshooting)
+
+// (Function outputs removed)
+output openAiEndpoint string = openai.properties.endpoint
+output openAiDeployment string = openAiDeploymentName

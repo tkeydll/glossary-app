@@ -260,3 +260,70 @@ docker compose restart glossary
 ```
 
 改造して nodemon を入れたい場合は dev 用 Dockerfile を別途作成して下さい。
+
+## 🌐 Azure OpenAI + Function App (用語解説 API)
+
+本リポジトリには Azure Functions (Node.js) で Azure OpenAI を呼び出す `explainTerm` エンドポイントを追加できます。
+
+### デプロイ (インフラ)
+
+1. Bicep パラメータ準備 (例):
+```bash
+az deployment group create \
+   -g <resourceGroup> \
+   -f infra/main.bicep \
+   -p namePrefix=glossa123 containerImage=<image>:<tag> cosmosPrimaryKey=<key> \
+       deployOpenAI=true openAiApiKey=<aoai-key(optional)> \
+       aiApiBaseUrl="" aiUseProxy=false
+```
+2. OpenAI モデルデプロイ (現状 CLI 別ステップ):
+```bash
+az cognitiveservices account deployment create \
+   -g <resourceGroup> \
+   -n <openAiAccountName> \
+   --deployment-name glossary-model \
+   --model-format OpenAI \
+   --model-name gpt-4o-mini \
+   --model-version 2024-07-18 \
+   --sku Standard \
+   --capacity 1
+```
+
+### Function コード配置 & 発行
+`functions/` ディレクトリで:
+```bash
+cd functions
+npm install
+func azure functionapp publish <functionAppName>
+```
+
+### API 呼び出し
+POST https://<functionAppHost>/api/explainTerm
+```json
+{
+   "term": "データレイク",
+   "context": "クラウド分析基盤",
+   "language": "ja"
+}
+```
+レスポンス例:
+```json
+{
+   "term": "データレイク",
+   "explanation": "...markdown...",
+   "model": "gpt-4o-mini",
+   "usage": { "promptTokens": 120, "completionTokens": 250 }
+}
+```
+
+### 環境変数 (Function App)
+| 名前 | 説明 |
+|------|------|
+| OPENAI_ENDPOINT | Azure OpenAI エンドポイント (https://xxx.openai.azure.com/) |
+| OPENAI_DEPLOYMENT | デプロイメント名 (glossary-model) |
+| OPENAI_API_KEY | API キー (Managed Identity へ移行予定) |
+| OPENAI_MODEL | モデル名 (gpt-4o-mini 等) |
+| OPENAI_MODEL_VERSION | モデルバージョン |
+
+将来的に Key Vault + Managed Identity へ移行しキーを除去することを推奨。
+
