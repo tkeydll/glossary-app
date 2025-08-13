@@ -1,0 +1,55 @@
+{
+  "name": "glossary-app",
+  "version": "2.0.0",
+  "description": "用語集アプリケーション - 複数人共有対応版",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server . -p 8080 -c-1",
+    "dev": "npx http-server . -p 8080 -c-1 --cors",
+    "api": "node cosmos-api-server.js",
+    "proxy": "node proxy-server.js",
+    "dev:full": "concurrently \"npm run api\" \"npm run proxy\" \"npm run dev\"",
+  "start:all": "node all-in-one.js",
+    "cosmos": "node cosmos-api-server.js",
+    "e2e": "playwright test",
+    "build": "echo 'This is a client-side application - no build step required'",
+    "test": "echo 'No tests specified'"
+  },
+  "keywords": [
+    "glossary",
+    "terms",
+    "dictionary",
+    "ai",
+    "ollama",
+    "json",
+    "data-sharing",
+    "collaborative"
+  ],
+  "author": "GitHub Copilot",
+  "license": "MIT",
+  "dependencies": {
+    "@azure/cosmos": "^4.0.0",
+    "@azure/identity": "^4.10.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "http-server": "^14.1.1",
+    "@playwright/test": "^1.46.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-repo/glossary-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-repo/glossary-app/issues"
+  },
+  "homepage": "https://github.com/your-repo/glossary-app#readme"
+}

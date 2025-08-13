@@ -1,0 +1,42 @@
+# 依存関係
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 環境変数ファイル
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+env.js
+
+# データベースファイル
+*.db
+*.sqlite
+*.sqlite3
+
+# ログファイル
+*.log
+logs/
+
+# 一時ファイル
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDEファイル
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 配布用ファイル
+dist/
+build/
+
+# テストカバレッジ
+coverage/
+.nyc_output/

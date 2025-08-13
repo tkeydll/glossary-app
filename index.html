@@ -1,0 +1,241 @@
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用語集サイト</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">        <header>
+            <h1>📚 用語集</h1>
+            <p>分からない用語を登録して、あとで解説を追加しよう！</p>
+            <div class="ai-status" id="aiStatus">
+                <span id="aiStatus" style="display: none;"></span>
+                <button id="dataSourceBtn" class="settings-btn">📄 データソース</button>
+                <button id="settingsBtn" class="settings-btn">⚙️ 設定</button>
+            </div>
+        </header>
+
+        <main>
+            <!-- 用語追加・検索フォーム -->
+            <section class="add-search-section">
+                <div class="form-container">
+                    <!-- 用語追加フォーム -->
+                    <div class="add-term-form">
+                        <h2>新しい用語を追加</h2>
+                        <form id="addTermForm">
+                            <div class="form-group">
+                                <input type="text" id="termInput" placeholder="用語を入力してください" required>
+                                <button type="submit">追加</button>
+                            </div>
+                            <div class="form-group ai-option">
+                                <label>
+                                    <input type="checkbox" id="enableAIForThisTerm" checked>
+                                    🤖 AI解説を自動生成する
+                                </label>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- 検索機能 -->
+                    <div class="search-form">
+                        <h2>用語を検索</h2>
+                        <div class="form-group">
+                            <input type="text" id="searchInput" placeholder="検索したい用語を入力...">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 用語一覧 -->
+            <section class="terms-section">
+                <div class="terms-header">
+                    <h2>登録済み用語</h2>
+                    <div class="view-toggle">
+                        <button id="cardViewBtn" class="view-btn active" title="カード表示">
+                            <span>🔲</span>
+                        </button>
+                        <button id="listViewBtn" class="view-btn" title="リスト表示">
+                            <span>📋</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="termsList" class="terms-grid">
+                    <!-- 用語カードがここに動的に追加されます -->
+                </div>
+                <div id="noTermsMessage" class="no-terms" style="display: none;">
+                    <p>まだ用語が登録されていません。</p>
+                    <p>上のフォームから新しい用語を追加してみましょう！</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- データソース選択モーダル -->
+        <div id="dataSourceModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📄 データソース設定</h3>
+                    <span class="close" id="closeDataSourceModal">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h4>現在のデータソース</h4>
+                        <div id="currentDataSource" class="status-message">
+                            <p>データソース: <span id="currentSourceType">確認中...</span></p>
+                            <p>状態: <span id="currentSourceStatus">確認中...</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h4>データソース切り替え</h4>
+                        <div class="form-group">
+                            <label>
+                                <input type="radio" name="dataSource" value="auto" checked>
+                                自動選択（推奨）
+                            </label>
+                            <p class="help-text">ファイルが利用可能ならファイル、そうでなければローカルストレージを使用します</p>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="radio" name="dataSource" value="file">
+                                ファイルデータソース
+                            </label>
+                            <p class="help-text">JSONファイルから用語を読み込みます（読み取り専用）</p>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="radio" name="dataSource" value="local">
+                                ローカルストレージ
+                            </label>
+                            <p class="help-text">ブラウザのローカルストレージを使用します（編集可能）</p>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h4>データ管理</h4>
+                        <div class="form-group">
+                            <button id="reloadData" class="secondary-btn">🔄 データを再読み込み</button>
+                            <button id="exportData" class="secondary-btn">📤 データをエクスポート</button>
+                        </div>
+                        <div class="form-group">
+                            <button id="checkUpdates" class="secondary-btn">📡 更新確認</button>
+                            <button id="showStats" class="secondary-btn">📊 統計情報</button>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <div class="form-group">
+                            <button id="applyDataSource" class="primary-btn">適用</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 設定モーダル -->
+        <div id="settingsModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>⚙️ AI設定</h3>
+                    <span class="close" id="closeSettingsModal">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h4>🤖 AI解説設定</h4>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="enableAIExplanation" checked>
+                                AI解説を自動生成する
+                            </label>
+                            <small style="color: #666; display: block; margin-top: 5px;">
+                                チェックを外すと、用語追加時にAI解説は生成されません
+                            </small>
+                        </div>
+                        
+                        <div id="aiApiSettings" class="settings-section">
+                            <h4>🔧 AI API設定</h4>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="useAICheckbox" checked>
+                                    外部AI APIを使用する
+                                </label>
+                            </div>
+                        <div class="form-group">
+                            <label for="aiApiUrl">APIエンドポイント:</label>
+                            <input type="text" id="aiApiUrl" placeholder="https://your-ai-api-endpoint.com/api/chat" value="https://your-ai-api-endpoint.com/api/chat">
+                        </div>
+                        <div class="form-group">
+                            <label for="aiApiKey">APIキー (任意):</label>
+                            <input type="password" id="aiApiKey" placeholder="必要に応じてAPIキーを入力">
+                        </div>
+                        <div class="form-group">
+                            <label for="aiTemperature">Temperature (0.0-1.0):</label>
+                            <input type="number" id="aiTemperature" min="0" max="1" step="0.1" value="0.7">
+                        </div>
+                        <div class="form-group">
+                            <label for="aiTopP">Top P (0.0-1.0):</label>
+                            <input type="number" id="aiTopP" min="0" max="1" step="0.1" value="0.9">
+                        </div>
+                        <div class="form-group">
+                            <button id="testAI" class="secondary-btn">🧪 接続テスト</button>
+                        </div>
+                        <div id="connectionStatus" class="status-message"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 編集モーダル -->
+        <div id="editModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>用語を編集</h3>
+                    <span class="close" id="closeModal">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="editTermForm">
+                        <div class="form-group">
+                            <label for="editTermName">用語名</label>
+                            <input type="text" id="editTermName" readonly>
+                        </div>                        <div class="form-group">
+                            <label for="editTermDescription">解説</label>
+                            <textarea id="editTermDescription" rows="6" placeholder="この用語の解説を入力してください..."></textarea>
+                            <button type="button" id="regenerateAI" class="ai-button">🤖 AI解説を再生成</button>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" id="cancelEdit">キャンセル</button>
+                            <button type="submit">保存</button>
+                            <button type="button" id="deleteTerm" class="delete-btn">削除</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 環境設定ファイルの動的読み込み
+        function loadEnvironmentConfig() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const useNetwork = urlParams.get('network') === 'true' || 
+                              window.location.hostname !== 'localhost' && 
+                              window.location.hostname !== '127.0.0.1';
+            
+            if (useNetwork) {
+                console.log('🌐 ネットワーク環境設定を読み込みます');
+                document.write('<script src="env-network.js"><\/script>');
+            } else {
+                console.log('🏠 ローカル環境設定を読み込みます');
+                document.write('<script src="env.js"><\/script>');
+            }
+        }
+        
+        // 環境設定の読み込み
+        loadEnvironmentConfig();
+    </script>
+    <script src="config.js"></script>
+    <!-- フロントエンドロジック (Cosmos API 対応) -->
+    <script src="script-cosmos.js"></script>
+</body>
+</html>

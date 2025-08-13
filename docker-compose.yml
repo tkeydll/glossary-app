@@ -1,0 +1,30 @@
+version: '3.9'
+services:
+  glossary:
+    build: .
+    image: glossary-app:latest
+    container_name: glossary
+    ports:
+      - "8080:8080"   # static site
+      - "3001:3001"   # API
+      - "3002:3002"   # proxy
+    environment:
+      # Cosmos (optional) - set real values to enable Cosmos mode
+      COSMOS_ENDPOINT: ${COSMOS_ENDPOINT:-}
+      COSMOS_KEY: ${COSMOS_KEY:-}
+      COSMOS_DB_NAME: ${COSMOS_DB_NAME:-glossary}
+      COSMOS_CONTAINER_NAME: ${COSMOS_CONTAINER_NAME:-terms}
+      # AI proxy target overrides
+      AI_API_BASE_URL: ${AI_API_BASE_URL:-https://func-dix-platform-dev-japaneast-003.azurewebsites.net}
+      AI_API_KEY: ${AI_API_KEY:-}
+      # App config
+      PORT: 3001
+      PROXY_PORT: 3002
+      STATIC_PORT: 8080
+      NODE_ENV: production
+    restart: unless-stopped
+
+# Usage:
+# docker compose build
+# docker compose up -d
+# Open http://localhost:8080
