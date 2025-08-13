@@ -160,3 +160,46 @@ resource openai 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
 // (Function outputs removed)
 output openAiEndpoint string = openai.properties.endpoint
 output openAiDeployment string = openAiDeploymentName
+
+// ---------------- Key Vault (store Cosmos key) ----------------
+@description('Key Vault SKU (standard or premium)')
+@allowed([
+  'standard'
+  'premium'
+])
+param kvSku string = 'standard'
+
+resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  name: '${namePrefix}kv'
+  location: location
+  properties: {
+    tenantId: subscription().tenantId
+    enableSoftDelete: true
+    publicNetworkAccess: 'Enabled'
+    sku: {
+      name: kvSku
+      family: 'A'
+    }
+    enableRbacAuthorization: true // use RBAC instead of access policies
+  }
+  tags: {
+    component: 'secrets'
+  }
+}
+
+// Retrieve Cosmos primary key and store as secret (deployment-time action).
+// NOTE: listKeys is required because primary key not exposed via symbolic ref; diagnostic suppressed intentionally.
+// bicep:disable-next-line no-loc-expr-outside-params
+var cosmosPrimaryKey = listKeys(cosmos.id, '2024-11-15').primaryMasterKey
+
+resource cosmosKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  name: 'cosmos-key'
+  parent: kv
+  properties: {
+    value: cosmosPrimaryKey
+  }
+}
+
+output keyVaultName string = kv.name
+output keyVaultUri string = kv.properties.vaultUri
+output cosmosKeySecretName string = 'cosmos-key'
