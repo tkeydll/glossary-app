@@ -1,5 +1,5 @@
-const { OpenAIClient, AzureKeyCredential } = require('@azure/openai');
-const { DefaultAzureCredential } = require('@azure/identity');
+import { OpenAIClient, AzureKeyCredential } from '@azure/openai';
+import { DefaultAzureCredential, getBearerTokenProvider } from '@azure/identity';
 
 const endpoint = process.env.OPENAI_ENDPOINT;
 const deployment = process.env.OPENAI_DEPLOYMENT;
@@ -7,7 +7,7 @@ const apiKey = process.env.OPENAI_API_KEY;
 
 let cachedClient;
 
-function getOpenAIClient() {
+export function getOpenAIClient() {
   if (cachedClient) return cachedClient;
   if (!endpoint) {
     throw new Error('OPENAI_ENDPOINT not set');
@@ -24,7 +24,7 @@ function getOpenAIClient() {
 }
 
 // Simple chat completion wrapper with retry
-async function chatCompletion(client, messages, { maxRetries = 3, temperature = 0.4 } = {}) {
+export async function chatCompletion(client, messages, { maxRetries = 3, temperature = 0.4 } = {}) {
   const delay = (ms) => new Promise(r => setTimeout(r, ms));
   let attempt = 0;
   let lastErr;
@@ -49,5 +49,3 @@ async function chatCompletion(client, messages, { maxRetries = 3, temperature = 
   }
   throw lastErr;
 }
-
-module.exports = { getOpenAIClient, chatCompletion };
