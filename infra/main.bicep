@@ -28,15 +28,191 @@ param openAiDeploymentName string = 'glossary-model'
 param openAiDisableLocalAuth bool = false
 // (Removed Function & Container App for staged troubleshooting)
 
+// ---- Network Security Parameters ----
+@description('IP addresses allowed to access resources (development PCs). Leave empty array to allow all private networks.')
+param allowedDevIpAddresses array = []
+
+@description('Virtual network address space')
+param vnetAddressSpace string = '10.0.0.0/16'
+
+@description('Subnet for Container Apps')
+param containerAppsSubnetAddressSpace string = '10.0.1.0/24'
+
+@description('Subnet for private endpoints')
+param privateEndpointsSubnetAddressSpace string = '10.0.2.0/24'
+
+// ---- Virtual Network Infrastructure ----
+// Virtual Network
+resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
+  name: '${namePrefix}vnet'
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [vnetAddressSpace]
+    }
+    subnets: [
+      {
+        name: 'container-apps-subnet'
+        properties: {
+          addressPrefix: containerAppsSubnetAddressSpace
+          delegations: [
+            {
+              name: 'Microsoft.App.environments'
+              properties: {
+                serviceName: 'Microsoft.App/environments'
+              }
+            }
+          ]
+        }
+      }
+      {
+        name: 'private-endpoints-subnet'
+        properties: {
+          addressPrefix: privateEndpointsSubnetAddressSpace
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+    ]
+  }
+}
+
+// Network Security Group for private endpoints subnet
+var devPcSecurityRules = [for (ip, index) in allowedDevIpAddresses: {
+  name: 'AllowDevPC${index + 1}'
+  properties: {
+    protocol: '*'
+    sourcePortRange: '*'
+    destinationPortRange: '*'
+    sourceAddressPrefix: ip
+    destinationAddressPrefix: '*'
+    access: 'Allow'
+    priority: 200 + index
+    direction: 'Inbound'
+  }
+}]
+
+resource privateEndpointsNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
+  name: '${namePrefix}private-endpoints-nsg'
+  location: location
+  properties: {
+    securityRules: concat([
+      {
+        name: 'AllowVNetInBound'
+        properties: {
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: 'VirtualNetwork'
+          destinationAddressPrefix: 'VirtualNetwork'
+          access: 'Allow'
+          priority: 100
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'AllowHttpsInBound'
+        properties: {
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'VirtualNetwork'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 110
+          direction: 'Inbound'
+        }
+      }
+    ], 
+    // Add rules for development PC access if IP addresses are specified
+    empty(allowedDevIpAddresses) ? [] : devPcSecurityRules)
+  }
+}
+
+// Update private endpoints subnet to use NSG
+resource privateEndpointsSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-09-01' = {
+  name: 'private-endpoints-subnet'
+  parent: vnet
+  properties: {
+    addressPrefix: privateEndpointsSubnetAddressSpace
+    privateEndpointNetworkPolicies: 'Disabled'
+    networkSecurityGroup: {
+      id: privateEndpointsNsg.id
+    }
+  }
+}
 
 // ACR (Basic)
+var acrIpRules = [for ip in allowedDevIpAddresses: {
+  action: 'Allow'
+  value: ip
+}]
+
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: '${namePrefix}acr'
   location: location
   sku: { name: 'Basic' }
   properties: {
     adminUserEnabled: false
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: empty(allowedDevIpAddresses) ? 'Disabled' : 'Enabled'
+    networkRuleSet: empty(allowedDevIpAddresses) ? null : {
+      defaultAction: 'Deny'
+      ipRules: acrIpRules
+    }
+  }
+}
+
+// Private endpoint for ACR
+resource acrPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = {
+  name: '${namePrefix}acr-pe'
+  location: location
+  properties: {
+    subnet: {
+      id: privateEndpointsSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${namePrefix}acr-plink'
+        properties: {
+          privateLinkServiceId: acr.id
+          groupIds: ['registry']
+        }
+      }
+    ]
+  }
+}
+
+// Private DNS zone for ACR
+resource acrPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.azurecr.io'
+  location: 'global'
+}
+
+// Link DNS zone to VNet
+resource acrPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  name: '${namePrefix}acr-dns-link'
+  parent: acrPrivateDnsZone
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+// DNS A record for ACR private endpoint
+resource acrPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = {
+  name: 'default'
+  parent: acrPrivateEndpoint
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'config'
+        properties: {
+          privateDnsZoneId: acrPrivateDnsZone.id
+        }
+      }
+    ]
   }
 }
 
@@ -64,10 +240,18 @@ resource cae 'Microsoft.App/managedEnvironments@2024-03-01' = {
   sharedKey: listKeys(logws.id, '2022-10-01').primarySharedKey // keep listKeys (log analytics doesn't expose keys via ref)
       }
     }
+    vnetConfiguration: {
+      infrastructureSubnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, 'container-apps-subnet')
+      internal: true
+    }
   }
 }
 
 // Cosmos DB Account (SQL API) cost optimized
+var cosmosIpRules = [for ip in allowedDevIpAddresses: {
+  ipAddressOrRange: ip
+}]
+
 resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   name: '${namePrefix}cosmos'
   location: location
@@ -84,7 +268,15 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
     enableAutomaticFailover: false
     enableMultipleWriteLocations: false
     enableFreeTier: enableCosmosFreeTier
-    publicNetworkAccess: 'Enabled' // can later switch to 'SecuredByPerimeter'
+    publicNetworkAccess: empty(allowedDevIpAddresses) ? 'Disabled' : 'Enabled'
+    ipRules: empty(allowedDevIpAddresses) ? [] : cosmosIpRules
+    isVirtualNetworkFilterEnabled: true
+    virtualNetworkRules: [
+      {
+        id: privateEndpointsSubnet.id
+        ignoreMissingVNetServiceEndpoint: false
+      }
+    ]
     consistencyPolicy: {
       defaultConsistencyLevel: 'Session'
     }
@@ -97,6 +289,61 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
     disableKeyBasedMetadataWriteAccess: false
     disableLocalAuth: false // can flip to true after Managed Identity adoption
     minimalTlsVersion: 'Tls12'
+  }
+}
+
+// Private endpoint for Cosmos DB
+resource cosmosPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = {
+  name: '${namePrefix}cosmos-pe'
+  location: location
+  properties: {
+    subnet: {
+      id: privateEndpointsSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${namePrefix}cosmos-plink'
+        properties: {
+          privateLinkServiceId: cosmos.id
+          groupIds: ['Sql']
+        }
+      }
+    ]
+  }
+}
+
+// Private DNS zone for Cosmos DB
+resource cosmosPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.documents.azure.com'
+  location: 'global'
+}
+
+// Link DNS zone to VNet
+resource cosmosPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  name: '${namePrefix}cosmos-dns-link'
+  parent: cosmosPrivateDnsZone
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+// DNS A record for Cosmos DB private endpoint
+resource cosmosPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = {
+  name: 'default'
+  parent: cosmosPrivateEndpoint
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'config'
+        properties: {
+          privateDnsZoneId: cosmosPrivateDnsZone.id
+        }
+      }
+    ]
   }
 }
 
@@ -143,6 +390,10 @@ output cosmosEndpoint string = cosmos.properties.documentEndpoint
 
 // ---------------- Azure OpenAI & Function App Section ----------------
 // OpenAI account (Cognitive Services) + model deployment conditional
+var openaiIpRules = [for ip in allowedDevIpAddresses: {
+  value: ip
+}]
+
 resource openai 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
   name: openAiAccountName
   kind: 'OpenAI'
@@ -151,8 +402,73 @@ resource openai 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
     name: 'S0'
   }
   properties: {
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: empty(allowedDevIpAddresses) ? 'Disabled' : 'Enabled'
+    networkAcls: empty(allowedDevIpAddresses) ? null : {
+      defaultAction: 'Deny'
+      ipRules: openaiIpRules
+      virtualNetworkRules: [
+        {
+          id: privateEndpointsSubnet.id
+          ignoreMissingVnetServiceEndpoint: false
+        }
+      ]
+    }
     disableLocalAuth: openAiDisableLocalAuth
+  }
+}
+
+// Private endpoint for OpenAI
+resource openaiPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = {
+  name: '${namePrefix}openai-pe'
+  location: location
+  properties: {
+    subnet: {
+      id: privateEndpointsSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${namePrefix}openai-plink'
+        properties: {
+          privateLinkServiceId: openai.id
+          groupIds: ['account']
+        }
+      }
+    ]
+  }
+}
+
+// Private DNS zone for OpenAI
+resource openaiPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.openai.azure.com'
+  location: 'global'
+}
+
+// Link DNS zone to VNet
+resource openaiPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  name: '${namePrefix}openai-dns-link'
+  parent: openaiPrivateDnsZone
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+// DNS A record for OpenAI private endpoint
+resource openaiPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = {
+  name: 'default'
+  parent: openaiPrivateEndpoint
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'config'
+        properties: {
+          privateDnsZoneId: openaiPrivateDnsZone.id
+        }
+      }
+    ]
   }
 }
 
@@ -173,6 +489,10 @@ output openAiDeployment string = openAiDeploymentName
 ])
 param kvSku string = 'standard'
 
+var kvIpRules = [for ip in allowedDevIpAddresses: {
+  value: ip
+}]
+
 resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
   // Make KV name deterministic but unique within the RG to avoid collisions when the same prefix was used elsewhere
   name: toLower('${namePrefix}kv${substring(uniqueString(resourceGroup().id), 0, 6)}')
@@ -180,7 +500,18 @@ resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
   properties: {
     tenantId: subscription().tenantId
     enableSoftDelete: true
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: empty(allowedDevIpAddresses) ? 'Disabled' : 'Enabled'
+    networkAcls: empty(allowedDevIpAddresses) ? null : {
+      defaultAction: 'Deny'
+      bypass: 'AzureServices'
+      ipRules: kvIpRules
+      virtualNetworkRules: [
+        {
+          id: privateEndpointsSubnet.id
+          ignoreMissingVnetServiceEndpoint: false
+        }
+      ]
+    }
     sku: {
       name: kvSku
       family: 'A'
@@ -189,6 +520,61 @@ resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
   tags: {
     component: 'secrets'
+  }
+}
+
+// Private endpoint for Key Vault
+resource kvPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = {
+  name: '${namePrefix}kv-pe'
+  location: location
+  properties: {
+    subnet: {
+      id: privateEndpointsSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${namePrefix}kv-plink'
+        properties: {
+          privateLinkServiceId: kv.id
+          groupIds: ['vault']
+        }
+      }
+    ]
+  }
+}
+
+// Private DNS zone for Key Vault
+resource kvPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.vaultcore.azure.net'
+  location: 'global'
+}
+
+// Link DNS zone to VNet
+resource kvPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  name: '${namePrefix}kv-dns-link'
+  parent: kvPrivateDnsZone
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+// DNS A record for Key Vault private endpoint
+resource kvPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = {
+  name: 'default'
+  parent: kvPrivateEndpoint
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'config'
+        properties: {
+          privateDnsZoneId: kvPrivateDnsZone.id
+        }
+      }
+    ]
   }
 }
 
@@ -216,6 +602,11 @@ param openAiApiKey string = ''
 
 var storageName = toLower(replace('${namePrefix}st${uniqueString(resourceGroup().id)}','-',''))
 
+var storageIpRules = [for ip in allowedDevIpAddresses: {
+  value: ip
+  action: 'Allow'
+}]
+
 resource storage 'Microsoft.Storage/storageAccounts@2023-01-01' = if (deployFunction) {
   name: storageName
   location: location
@@ -225,6 +616,73 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-01-01' = if (deployFunc
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
     supportsHttpsTrafficOnly: true
+    publicNetworkAccess: empty(allowedDevIpAddresses) ? 'Disabled' : 'Enabled'
+    networkAcls: empty(allowedDevIpAddresses) ? null : {
+      defaultAction: 'Deny'
+      bypass: 'AzureServices'
+      ipRules: storageIpRules
+      virtualNetworkRules: [
+        {
+          id: privateEndpointsSubnet.id
+          action: 'Allow'
+        }
+      ]
+    }
+  }
+}
+
+// Private endpoint for Storage Account
+resource storagePrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-09-01' = if (deployFunction) {
+  name: '${namePrefix}st-pe'
+  location: location
+  properties: {
+    subnet: {
+      id: privateEndpointsSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: '${namePrefix}st-plink'
+        properties: {
+          privateLinkServiceId: storage.id
+          groupIds: ['blob']
+        }
+      }
+    ]
+  }
+}
+
+// Private DNS zone for Storage Account
+resource storagePrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (deployFunction) {
+  name: 'privatelink.blob.${environment().suffixes.storage}'
+  location: 'global'
+}
+
+// Link DNS zone to VNet
+resource storagePrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (deployFunction) {
+  name: '${namePrefix}st-dns-link'
+  parent: storagePrivateDnsZone
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnet.id
+    }
+  }
+}
+
+// DNS A record for Storage Account private endpoint
+resource storagePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-09-01' = if (deployFunction) {
+  name: 'default'
+  parent: storagePrivateEndpoint
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'config'
+        properties: {
+          privateDnsZoneId: storagePrivateDnsZone.id
+        }
+      }
+    ]
   }
 }
 
@@ -287,6 +745,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (deployFunction) {
     httpsOnly: true
     serverFarmId: funcPlan.id
     reserved: true // required for Linux consumption Function Apps
+    virtualNetworkSubnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, 'container-apps-subnet')
     siteConfig: {
       appSettings: empty(openAiApiKey) ? functionBaseAppSettings : concat(functionBaseAppSettings, [
         {
@@ -294,6 +753,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (deployFunction) {
           value: openAiApiKey
         }
       ])
+      vnetRouteAllEnabled: true
     }
   }
   identity: {

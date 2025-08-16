@@ -40,3 +40,6 @@ build/
 # テストカバレッジ
 coverage/
 .nyc_output/
+
+# テストファイル (本番環境では除外)
+test-network-config.js
