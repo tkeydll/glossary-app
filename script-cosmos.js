@@ -134,7 +134,8 @@
     // Azure Functions の GaiAoaiProxy を直接コール
     const endpoint = window.AI_API_CONFIG?.useProxy ? window.AI_API_CONFIG.proxyApiUrl : window.AI_API_CONFIG.directApiUrl;
     if(!endpoint){ console.log('AIエンドポイント未設定'); return; }
-  const systemPrompt = 'あなたは用語集の説明を行うアシスタントです。出力は必ず日本語の平文のみで、Markdownや箇条書き、装飾記号は使わないでください。対象はIT用語に限定し、非IT用語は「この用語はIT用語ではないため登録できません」とだけ返してください。IT用語の場合は一言サマリの1文だけを返してください。余計な前置きや例、関連語は出さないでください。';
+  const systemPrompt = window.AI_API_CONFIG?.systemPrompt ||
+    'あなたは用語集の説明を行うアシスタントです。出力は必ず日本語の平文のみで、Markdownや箇条書き、装飾記号は使わないでください。対象はIT用語に限定し、非IT用語は「この用語はIT用語ではないため登録できません」とだけ返してください。IT用語の場合は一言サマリの1文だけを返してください。余計な前置きや例、関連語は出さないでください。';
     const userPrompt = `用語: ${name}`;
     try {
       const res = await fetch(endpoint, {
