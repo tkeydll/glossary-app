@@ -36,10 +36,10 @@ window.ENV_CONFIG = {
     API_BASE_URL: '/api',
     API_ENABLED: 'true',
     
-    // AI API設定 (ゲートウェイが /api/ai-request を内部 3002 へ転送)
-    AI_PROXY_API_URL: '/api/ai-request',
-    AI_DIRECT_API_URL: 'https://func-dix-platform-dev-japaneast-003.azurewebsites.net/api/GaiAoaiProxy',
-    AI_USE_PROXY: 'true',
+    // AI API設定: プロキシ経路は廃止し、Function を直接呼ぶ
+    AI_PROXY_API_URL: '',
+    AI_DIRECT_API_URL: 'https://glossary-func.azurewebsites.net/api/GaiAoaiProxy',
+    AI_USE_PROXY: 'false',
     AI_ENABLE_EXPLANATION: 'true',
     AI_FALLBACK_ENABLED: 'true',
     AI_RETRY_COUNT: '3',

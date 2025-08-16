@@ -8,14 +8,12 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const app = express();
 const GATEWAY_PORT = process.env.GATEWAY_PORT || process.env.STATIC_PORT || 8080;
 const API_INTERNAL = `http://127.0.0.1:${process.env.PORT || 3001}`;
-const AI_INTERNAL = `http://127.0.0.1:${process.env.PROXY_PORT || 3002}`;
+// const AI_INTERNAL = `http://127.0.0.1:${process.env.PROXY_PORT || 3002}`; // proxy経路は廃止
 
 // Basic health
 app.get('/health', (_req,res)=>res.json({ status:'ok', gateway:true, timestamp:new Date().toISOString() }));
 
-// Reverse proxy rules
-app.use('/api/ai-request', (req,res,next)=>{ console.log(`[GW→AI] ${req.method} ${req.originalUrl}`); next(); }, createProxyMiddleware({ target: AI_INTERNAL, changeOrigin: false }));
-app.use('/api/proxy', (req,res,next)=>{ console.log(`[GW→AI-PROXY] ${req.method} ${req.originalUrl}`); next(); }, createProxyMiddleware({ target: AI_INTERNAL, changeOrigin: false, pathRewrite: { '^/api/proxy': '' } }));
+// Reverse proxy rules (AI 経路は廃止 /api のみ維持)
 // Preserve /api prefix (Express strips mount path before forwarding), so manually re-prepend
 app.use('/api', (req,res,next)=>{ const orig = req.url; req.url = '/api' + req.url; console.log(`[GW→API] ${req.method} ${req.originalUrl} -> forwarded ${req.url}`); next(); }, createProxyMiddleware({ target: API_INTERNAL, changeOrigin: false }));
 
@@ -29,5 +27,5 @@ app.get('*', (req,res)=>{
 });
 
 app.listen(GATEWAY_PORT, ()=>{
-  console.log(`🌐 Gateway listening on :${GATEWAY_PORT} -> API ${API_INTERNAL} / AI ${AI_INTERNAL}`);
+  console.log(`🌐 Gateway listening on :${GATEWAY_PORT} -> API ${API_INTERNAL}`);
 });

@@ -174,7 +174,8 @@ output openAiDeployment string = openAiDeploymentName
 param kvSku string = 'standard'
 
 resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: '${namePrefix}kv'
+  // Make KV name deterministic but unique within the RG to avoid collisions when the same prefix was used elsewhere
+  name: toLower('${namePrefix}kv${substring(uniqueString(resourceGroup().id), 0, 6)}')
   location: location
   properties: {
     tenantId: subscription().tenantId

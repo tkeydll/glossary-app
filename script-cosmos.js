@@ -84,15 +84,30 @@
   }
 
   async function generateAIExplanation(id, name){
-    // 簡易 AI: プロキシ or 直接 API にリクエスト (擬似)
+    // Azure Functions の GaiAoaiProxy を直接コール
     const endpoint = window.AI_API_CONFIG?.useProxy ? window.AI_API_CONFIG.proxyApiUrl : window.AI_API_CONFIG.directApiUrl;
     if(!endpoint){ console.log('AIエンドポイント未設定'); return; }
-    const prompt = `以下のIT用語について初心者向けに分かりやすく日本語で200文字以内で説明してください: ${name}`;
+    const systemPrompt = 'You are an AI that explains glossary terms clearly and concisely for professional documentation. Output in Japanese using markdown. Include: 1) 一言サマリ, 2) 詳細説明, 3) 例 (あれば), 4) 関連用語 (箇条書き). Keep it factual.';
+    const userPrompt = `用語: ${name}`;
     try {
-      const res = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json', ...(window.AI_API_CONFIG.apiKey ? { 'Authorization': `Bearer ${window.AI_API_CONFIG.apiKey}` } : {})}, body: JSON.stringify({ messages:[{role:'user',content:prompt}], temperature: window.AI_API_CONFIG.defaultTemperature })});
-      if(!res.ok) throw new Error('AI API失敗');
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_prompt: systemPrompt,
+          user_prompt: userPrompt,
+          temperature: window.AI_API_CONFIG.defaultTemperature,
+          top_p: window.AI_API_CONFIG.defaultTopP,
+          frequency_penalty: window.AI_API_CONFIG.defaultFrequencyPenalty,
+          presence_penalty: window.AI_API_CONFIG.defaultPresencePenalty
+        })
+      });
+      if(!res.ok){
+        const errTxt = await res.text().catch(()=> '');
+        throw new Error(`AI API失敗: ${res.status} ${errTxt}`);
+      }
       const data = await res.json();
-      const text = data.choices?.[0]?.message?.content || data.output || data.text || '';
+      const text = data.explanation || data.output || data.text || '';
       if(text){ await updateTerm(id, { description: text, category: '' }); }
     } catch(e){ console.warn('AI説明生成エラー', e.message); }
   }
