@@ -1,0 +1,19 @@
+{
+  "name": "glossary-functions",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "func start",
+    "lint": "eslint .",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "@azure/openai": "1.0.0-beta.12",
+    "@azure/identity": "^4.4.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}

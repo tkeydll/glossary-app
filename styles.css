@@ -186,41 +186,7 @@ header p {
     font-weight: var(--font-medium);
 }
 
-.ai-status {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-4);
-    margin-top: var(--space-6);
-}
-
-#ollamaStatus {
-    background: rgba(255, 255, 255, 0.2);
-    padding: var(--space-2) var(--space-4);
-    border-radius: var(--radius-full);
-    font-size: var(--text-sm);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.settings-btn {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    padding: var(--space-3) var(--space-6);
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    border-radius: var(--radius-xl);
-    backdrop-filter: blur(10px);
-    transition: all var(--transition-base);
-    cursor: pointer;
-}
-
-.settings-btn:hover {
-    background: rgba(255, 255, 255, 0.25);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-}
+/* (旧) AI ステータスや設定ボタンのスタイルは UI から削除されたため除去 */
 
 /* Section Styles */
 section {
@@ -771,37 +737,13 @@ button:active {
     padding: var(--space-8);
 }
 
-.modal-body .form-group {
-    display: block;
-    margin-bottom: var(--space-6);
-}
-
-.modal-body label {
-    display: block;
-    margin-bottom: var(--space-2);
-    font-weight: var(--font-medium);
-    color: var(--secondary-800);
-    font-size: var(--text-sm);
-}
-
+/* 編集モーダルのフォームレイアウトのみ維持 */
+.modal-body .form-group { display: block; margin-bottom: var(--space-6); }
+.modal-body label { display: block; margin-bottom: var(--space-2); font-weight: var(--font-medium); color: var(--secondary-800); font-size: var(--text-sm); }
 .modal-body input[type="text"],
-.modal-body textarea {
-    width: 100%;
-    padding: var(--space-4);
-    border: 2px solid var(--secondary-300);
-    border-radius: var(--radius-lg);
-    font-size: var(--text-base);
-    font-family: inherit;
-    resize: vertical;
-    transition: all var(--transition-base);
-}
-
+.modal-body textarea { width: 100%; padding: var(--space-4); border: 2px solid var(--secondary-300); border-radius: var(--radius-lg); font-size: var(--text-base); font-family: inherit; resize: vertical; transition: all var(--transition-base); }
 .modal-body input[type="text"]:focus,
-.modal-body textarea:focus {
-    outline: none;
-    border-color: var(--primary-500);
-    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-}
+.modal-body textarea:focus { outline: none; border-color: var(--primary-500); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }
 
 .modal-actions {
     display: flex;
@@ -836,114 +778,11 @@ button:active {
     box-shadow: var(--shadow-md);
 }
 
-.secondary-btn {
-    background: var(--secondary-100);
-    color: var(--secondary-700);
-    border: 1px solid var(--secondary-300);
-    padding: var(--space-3) var(--space-5);
-    border-radius: var(--radius-lg);
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    cursor: pointer;
-    transition: all var(--transition-base);
-    margin-right: var(--space-3);
-}
+/* (旧) セカンダリボタンは削除 */
 
-.secondary-btn:hover {
-    background: var(--secondary-200);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
+/* (旧) 設定セクションのスタイル群は削除 */
 
-/* Settings Section - Updated */
-.settings-section {
-    margin-bottom: var(--space-8);
-    padding: var(--space-6);
-    background: var(--secondary-50);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--secondary-200);
-}
-
-.settings-section h4 {
-    color: var(--primary-700);
-    margin-bottom: var(--space-4);
-    font-size: var(--text-lg);
-    font-weight: var(--font-semibold);
-}
-
-.settings-section label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin-bottom: var(--space-3);
-    cursor: pointer;
-    font-weight: var(--font-medium);
-}
-
-.settings-section input[type="checkbox"],
-.settings-section input[type="radio"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--primary-500);
-    margin: 0;
-}
-
-.settings-section select {
-    width: 100%;
-    padding: var(--space-3) var(--space-4);
-    border: 2px solid var(--secondary-300);
-    border-radius: var(--radius-lg);
-    font-size: var(--text-base);
-    background: white;
-    transition: all var(--transition-base);
-}
-
-.settings-section select:focus {
-    outline: none;
-    border-color: var(--primary-500);
-    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-}
-
-.help-text {
-    font-size: var(--text-sm);
-    color: var(--secondary-600);
-    margin-top: var(--space-1);
-    line-height: 1.4;
-}
-
-/* Status Messages - Updated */
-.status-message {
-    margin-top: var(--space-4);
-    padding: var(--space-4) var(--space-5);
-    border-radius: var(--radius-lg);
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    border: 1px solid;
-}
-
-.status-success {
-    background: var(--success-50);
-    color: var(--success-800);
-    border-color: var(--success-200);
-}
-
-.status-error {
-    background: var(--error-50);
-    color: var(--error-800);
-    border-color: var(--error-200);
-}
-
-.status-info {
-    background: var(--primary-50);
-    color: var(--primary-800);
-    border-color: var(--primary-200);
-}
-
-.status-disabled {
-    background: var(--secondary-100);
-    color: var(--secondary-600);
-    border-color: var(--secondary-300);
-}
+/* (旧) ステータスメッセージのスタイルは削除 */
 
 /* Responsive Design - Updated */
 @media (max-width: 768px) {
@@ -1063,110 +902,4 @@ button:active {
     background: var(--secondary-500);
 }
 
-/* Legacy Support - Updated */
-.primary-btn {
-    background: var(--success-500);
-    color: white;
-    border: none;
-    padding: var(--space-4) var(--space-8);
-    border-radius: var(--radius-lg);
-    font-size: var(--text-base);
-    font-weight: var(--font-medium);
-    cursor: pointer;
-    transition: all var(--transition-base);
-    width: 100%;
-}
-
-.primary-btn:hover {
-    background: var(--success-600);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-}
-
-.primary-btn:disabled {
-    background: var(--secondary-400);
-    cursor: not-allowed;
-    transform: none;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-4);
-    margin-top: var(--space-4);
-}
-
-.stat-card {
-    background: var(--secondary-50);
-    padding: var(--space-4);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--secondary-200);
-    text-align: center;
-}
-
-.stat-card h5 {
-    margin-bottom: var(--space-3);
-    color: var(--secondary-800);
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-}
-
-.stat-card .stat-value {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-bold);
-    color: var(--success-600);
-}
-
-.read-only-indicator {
-    background: var(--warning-50);
-    border: 1px solid var(--warning-300);
-    color: var(--warning-800);
-    padding: var(--space-3);
-    border-radius: var(--radius-lg);
-    margin-bottom: var(--space-4);
-    font-size: var(--text-sm);
-    text-align: center;
-}
-
-.data-source-status {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    margin-bottom: var(--space-4);
-}
-
-.data-source-status .status-icon {
-    font-size: var(--text-lg);
-}
-
-.data-source-status .status-text {
-    font-size: var(--text-sm);
-    color: var(--secondary-600);
-}
-
-.update-notification {
-    background: var(--primary-50);
-    border: 1px solid var(--primary-300);
-    color: var(--primary-800);
-    padding: var(--space-4);
-    border-radius: var(--radius-lg);
-    margin-bottom: var(--space-4);
-    font-size: var(--text-sm);
-    text-align: center;
-}
-
-.update-notification button {
-    background: var(--primary-500);
-    color: white;
-    border: none;
-    padding: var(--space-2) var(--space-4);
-    border-radius: var(--radius-base);
-    font-size: var(--text-xs);
-    cursor: pointer;
-    margin-left: var(--space-3);
-    transition: all var(--transition-base);
-}
-
-.update-notification button:hover {
-    background: var(--primary-600);
-}
+/* (旧) データソース関連のスタイルは削除 */

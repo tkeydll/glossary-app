@@ -24,11 +24,14 @@ function getEnvConfig(key, defaultValue = '') {
 // AI API設定（環境変数対応）
 const AI_API_CONFIG = {
     // プロキシサーバー経由のAPIエンドポイント（開発環境用）
-    proxyApiUrl: getEnvConfig('AI_PROXY_API_URL', 'http://localhost:3002/api/ai-request'),
+    // ゲートウェイ/プロキシ経路は廃止方針のためデフォルト空にする
+    proxyApiUrl: getEnvConfig('AI_PROXY_API_URL', ''),
     
     // 直接アクセス用のAPIエンドポイント
     // 直接アクセス用のAPIエンドポイント (キーは含めない: 環境変数 AI_FUNCTION_KEY を使ってサーバー側で付与する想定)
-    directApiUrl: getEnvConfig('AI_DIRECT_API_URL', 'https://func-dix-platform-dev-japaneast-003.azurewebsites.net/api/GaiAoaiProxy'),
+    // 直接アクセス用のAPIエンドポイント（Azure Functions: GaiAoaiProxy）
+    // 既定は本番の Function App を指す。必要なら ENV で上書き
+    directApiUrl: getEnvConfig('AI_DIRECT_API_URL', 'https://glossary-func.azurewebsites.net/api/GaiAoaiProxy'),
     
     // APIキー（必要に応じて）
     apiKey: getEnvConfig('AI_API_KEY', ''), // クライアント側では空推奨（漏洩防止）
@@ -39,8 +42,8 @@ const AI_API_CONFIG = {
     defaultFrequencyPenalty: parseFloat(getEnvConfig('AI_DEFAULT_FREQUENCY_PENALTY', '0')),
     defaultPresencePenalty: parseFloat(getEnvConfig('AI_DEFAULT_PRESENCE_PENALTY', '0')),
     
-    // プロキシ使用設定
-    useProxy: getEnvConfig('AI_USE_PROXY', 'true') === 'true',
+    // プロキシ使用設定（廃止）: 既定は false に切替
+    useProxy: getEnvConfig('AI_USE_PROXY', 'false') === 'true',
     
     // AI解説機能の有効化
     enableAIExplanation: getEnvConfig('AI_ENABLE_EXPLANATION', 'true') === 'true',

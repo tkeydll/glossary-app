@@ -20,7 +20,7 @@ ENV NODE_ENV=production \
     PORT=3001 \
     PROXY_PORT=3002 \
     STATIC_PORT=8080 \
-    AI_USE_PROXY=true \
+    AI_USE_PROXY=false \
     API_ENABLED=true
 
 # Default command launches all three services

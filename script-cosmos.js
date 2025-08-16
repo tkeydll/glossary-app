@@ -11,6 +11,9 @@
   const noTermsMessage = document.getElementById('noTermsMessage');
   const searchInput = document.getElementById('searchInput');
   const enableAIForThisTerm = document.getElementById('enableAIForThisTerm');
+  // 表示切替ボタン
+  const cardViewBtn = document.getElementById('cardViewBtn');
+  const listViewBtn = document.getElementById('listViewBtn');
 
   // 編集モーダル関連
   const editModal = document.getElementById('editModal');
@@ -25,21 +28,65 @@
   let currentTerms = [];
   let editingTermId = null;
   let searchTimer = null;
+  let viewMode = (localStorage.getItem('viewMode') === 'list') ? 'list' : 'grid';
 
   function show(el){ if(el) el.style.display='block'; }
   function hide(el){ if(el) el.style.display='none'; }
 
-  function termCard(t){
+  function nodeGrid(t){
     const div = document.createElement('div');
     div.className = 'term-card';
-    div.innerHTML = `\n      <div class="term-card-header">\n        <h3>${escapeHtml(t.name)}</h3>\n        <div class="term-meta">${t.category?`<span class="badge">${escapeHtml(t.category)}</span>`:''}</div>\n      </div>\n      <p class="description">${t.description?escapeHtml(t.description):'<em>説明なし</em>'}</p>\n      <div class="term-footer">\n        <button class="edit-btn" data-id="${t.id}">編集</button>\n        <button class="delete-btn" data-id="${t.id}">削除</button>\n      </div>`;
+    div.innerHTML = `
+      <div class="term-info">
+        <div class="term-name">${escapeHtml(t.name)}</div>
+        <div class="term-description">${t.description ? escapeHtml(t.description) : '<span class="no-description">説明なし</span>'}</div>
+      </div>
+      <div class="term-actions">
+        <button class="edit-btn" data-id="${t.id}">編集</button>
+        <button class="delete-btn" data-id="${t.id}">削除</button>
+      </div>`;
     return div;
   }
 
+  function nodeList(t){
+    const div = document.createElement('div');
+    div.className = 'term-card';
+    div.innerHTML = `
+      <div class="term-content">
+        <div class="term-info">
+          <div class="term-name">${escapeHtml(t.name)}</div>
+          <div class="term-description">${t.description ? escapeHtml(t.description) : '<span class="no-description">説明なし</span>'}</div>
+        </div>
+      </div>
+      <div class="term-actions">
+        <button class="edit-btn" data-id="${t.id}">編集</button>
+        <button class="delete-btn" data-id="${t.id}">削除</button>
+      </div>`;
+    return div;
+  }
+
+  function applyContainerClass(){
+    if(!termsList) return;
+    termsList.classList.remove('terms-grid','terms-list');
+    termsList.classList.add(viewMode === 'list' ? 'terms-list' : 'terms-grid');
+  }
+
   function render(){
+    if(!termsList) return;
+    applyContainerClass();
     termsList.innerHTML='';
     if(!currentTerms.length){ show(noTermsMessage); return; } else hide(noTermsMessage);
-    currentTerms.forEach(t=> termsList.appendChild(termCard(t)));
+    const maker = viewMode === 'list' ? nodeList : nodeGrid;
+    currentTerms.forEach(t=> termsList.appendChild(maker(t)));
+  }
+
+  function setViewMode(mode){
+    viewMode = (mode === 'list') ? 'list' : 'grid';
+    localStorage.setItem('viewMode', viewMode);
+    // ボタンの状態
+    cardViewBtn?.classList.toggle('active', viewMode === 'grid');
+    listViewBtn?.classList.toggle('active', viewMode === 'list');
+    render();
   }
 
   async function fetchTerms(){
@@ -84,15 +131,31 @@
   }
 
   async function generateAIExplanation(id, name){
-    // 簡易 AI: プロキシ or 直接 API にリクエスト (擬似)
+    // Azure Functions の GaiAoaiProxy を直接コール
     const endpoint = window.AI_API_CONFIG?.useProxy ? window.AI_API_CONFIG.proxyApiUrl : window.AI_API_CONFIG.directApiUrl;
     if(!endpoint){ console.log('AIエンドポイント未設定'); return; }
-    const prompt = `以下のIT用語について初心者向けに分かりやすく日本語で200文字以内で説明してください: ${name}`;
+  const systemPrompt = window.AI_API_CONFIG?.systemPrompt ||
+    'あなたは用語集の説明を行うアシスタントです。出力は必ず日本語の平文のみで、Markdownや箇条書き、装飾記号は使わないでください。対象はIT用語に限定し、非IT用語は「この用語はIT用語ではないため登録できません」とだけ返してください。IT用語の場合は一言サマリの1文だけを返してください。余計な前置きや例、関連語は出さないでください。';
+    const userPrompt = `用語: ${name}`;
     try {
-      const res = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json', ...(window.AI_API_CONFIG.apiKey ? { 'Authorization': `Bearer ${window.AI_API_CONFIG.apiKey}` } : {})}, body: JSON.stringify({ messages:[{role:'user',content:prompt}], temperature: window.AI_API_CONFIG.defaultTemperature })});
-      if(!res.ok) throw new Error('AI API失敗');
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_prompt: systemPrompt,
+          user_prompt: userPrompt,
+          temperature: window.AI_API_CONFIG.defaultTemperature,
+          top_p: window.AI_API_CONFIG.defaultTopP,
+          frequency_penalty: window.AI_API_CONFIG.defaultFrequencyPenalty,
+          presence_penalty: window.AI_API_CONFIG.defaultPresencePenalty
+        })
+      });
+      if(!res.ok){
+        const errTxt = await res.text().catch(()=> '');
+        throw new Error(`AI API失敗: ${res.status} ${errTxt}`);
+      }
       const data = await res.json();
-      const text = data.choices?.[0]?.message?.content || data.output || data.text || '';
+      const text = data.explanation || data.output || data.text || '';
       if(text){ await updateTerm(id, { description: text, category: '' }); }
     } catch(e){ console.warn('AI説明生成エラー', e.message); }
   }
@@ -144,8 +207,13 @@
     searchTimer = setTimeout(()=> searchTerms(q), 250);
   });
 
+  // 表示切替イベント
+  cardViewBtn?.addEventListener('click', ()=> setViewMode('grid'));
+  listViewBtn?.addEventListener('click', ()=> setViewMode('list'));
+
   function escapeHtml(str){ return str.replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c])); }
 
-  // 初回ロード
+  // 初期状態
+  setViewMode(viewMode); // ボタン状態とクラス反映
   fetchTerms().catch(e=> console.error('初期ロード失敗', e));
 })();

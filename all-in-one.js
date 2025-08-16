@@ -35,9 +35,8 @@ process.env.PORT = process.env.PORT || '3001';            // API
 process.env.PROXY_PORT = process.env.PROXY_PORT || '3002';// AI Proxy
 const GATEWAY_PORT = process.env.STATIC_PORT || '8080';   // Gateway (static + reverse proxy)
 
-// Start services
+// Start services (proxy は廃止)
 spawnProc('api', 'node', ['cosmos-api-server.js']);
-spawnProc('proxy', 'node', ['proxy-server.js']);
 spawnProc('gateway', 'node', ['gateway.js'], { GATEWAY_PORT });
 
-console.log(`🚀 Services starting: gateway=${GATEWAY_PORT}, api=${process.env.PORT}, proxy=${process.env.PROXY_PORT}`);
+console.log(`🚀 Services starting: gateway=${GATEWAY_PORT}, api=${process.env.PORT} (AIはFunction直叩き)`);

@@ -23,6 +23,7 @@ app.use(cors({
             /^https?:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+/, // 172.16.x.x-172.31.x.x (プライベートネットワーク)
             /^file:\/\//,                     // ファイルプロトコル
             /^https?:\/\/[^.]+\.local/        // .localドメイン
+            ,/^https?:\/\/([^.]+\.)*azurecontainerapps\.io/ // Azure Container Apps サブドメイン (任意のサブドメインレベルを許可)
         ];
         
         // パターンマッチングチェック
@@ -49,7 +50,8 @@ app.options('*', cors());
 app.use(express.json());
 
 // 環境変数からAI APIのURLを取得
-const AI_API_BASE_URL = process.env.AI_API_BASE_URL || 'https://func-dix-platform-dev-japaneast-003.azurewebsites.net';
+// デフォルトはユーザー指定の 'glossary-func' を使う
+const AI_API_BASE_URL = process.env.AI_API_BASE_URL || 'https://glossary-func.azurewebsites.net';
 const AI_API_KEY = process.env.AI_API_KEY || '';
 
 // プロキシ設定
@@ -104,6 +106,7 @@ app.post('/api/ai-request', async (req, res) => {
             
             const { system_prompt, user_prompt, temperature, top_p, frequency_penalty, presence_penalty } = req.body;
             
+                        // ユーザーの指定に従い GaiAoaiProxy を使う
                         const url = AI_API_KEY
                             ? `${AI_API_BASE_URL}/api/GaiAoaiProxy?code=${AI_API_KEY}`
                             : `${AI_API_BASE_URL}/api/GaiAoaiProxy`;

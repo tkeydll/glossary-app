@@ -31,17 +31,17 @@ Azure Cosmos DB (NoSQL) ベースの用語集管理システムです。以前�
 <script src="config.js"></script>
 ```
 
-### 方法2: HTMLファイルで直接設定
+### 方法2: HTMLファイルで直接設定（Function 直叩き推奨）
 
 ```html
 <script>
 window.ENV_CONFIG = {
-    AI_PROXY_API_URL: '/api/ai-request',
-    AI_DIRECT_API_URL: 'https://your-api-endpoint.com/api/ai',
-    AI_API_KEY: 'your-api-key-here',
-    API_BASE_URL: '/api',
-    AI_USE_PROXY: 'true',
-    AI_ENABLE_EXPLANATION: 'true'
+   // プロキシは廃止: 直叩きを基本とする
+   AI_PROXY_API_URL: '',
+   AI_DIRECT_API_URL: 'https://<your-function-app>.azurewebsites.net/api/GaiAoaiProxy',
+   API_BASE_URL: '/api',
+   AI_USE_PROXY: 'false',
+   AI_ENABLE_EXPLANATION: 'true'
 };
 </script>
 <script src="config.js"></script>
@@ -50,12 +50,10 @@ window.ENV_CONFIG = {
 ### 方法3: Node.js環境での設定
 
 ```bash
-# .envファイルを作成
-AI_PROXY_API_URL=/api/ai-request
-AI_DIRECT_API_URL=https://your-api-endpoint.com/api/ai
-AI_API_KEY=your-api-key-here
+# .envファイルを作成（例）
+AI_DIRECT_API_URL=https://<your-function-app>.azurewebsites.net/api/GaiAoaiProxy
 API_BASE_URL=/api
-AI_USE_PROXY=true
+AI_USE_PROXY=false
 AI_ENABLE_EXPLANATION=true
 ```
 
@@ -63,7 +61,7 @@ AI_ENABLE_EXPLANATION=true
 
 | 環境変数 | 説明 | デフォルト値 |
 |---------|------|-------------|
-| `AI_PROXY_API_URL` | プロキシサーバー経由のAPIエンドポイント | `/api/ai-request` |
+| `AI_PROXY_API_URL` | プロキシサーバー経由のAPIエンドポイント | 空文字（非推奨） |
 | `AI_DIRECT_API_URL` | 直接アクセス用のAPIエンドポイント | 設定済み |
 | `AI_API_KEY` | APIキー（必要に応じて） | 空文字 |
 | `API_BASE_URL` | API サーバーのベースURL | `/api` |
@@ -72,7 +70,7 @@ AI_ENABLE_EXPLANATION=true
 | `AI_DEFAULT_TOP_P` | AI生成時のTop-P設定 | `0.9` |
 | `AI_DEFAULT_FREQUENCY_PENALTY` | 頻度ペナルティ | `0` |
 | `AI_DEFAULT_PRESENCE_PENALTY` | 存在ペナルティ | `0` |
-| `AI_USE_PROXY` | プロキシ使用設定 | `true` |
+| `AI_USE_PROXY` | プロキシ使用設定 | `false` |
 | `AI_ENABLE_EXPLANATION` | AI解説機能の有効化 | `true` |
 | `AI_FALLBACK_ENABLED` | フォールバック機能の有効化 | `true` |
 | `AI_RETRY_COUNT` | リトライ回数 | `3` |
@@ -108,13 +106,12 @@ AI_ENABLE_EXPLANATION=true
    PORT=3001
    ```
 
-5. **開発サーバー一括起動 (API + プロキシ + フロント)**
-   これだけで 3 つのプロセス (3001, 3002, 8080) を同時に起動します。
+5. **開発サーバー一括起動 (API + フロント)**
+   これだけで 2 つのプロセス (3001, 8080) を同時に起動します。AI は Function を直接呼びます。
    ```bash
    npm run dev:full
    ```
    - API: http://localhost:3001/api/health
-   - プロキシ: http://localhost:3002/health
    - フロント: http://localhost:8080
    Cosmos 資格情報未設定の場合は API が自動的にメモリモード（永続化なし）で起動します。
 
@@ -122,8 +119,7 @@ AI_ENABLE_EXPLANATION=true
    ```bash
    # API だけ
    npm run api
-   # プロキシだけ
-   npm run proxy
+   # （旧）プロキシはデフォ無効・利用非推奨
    # フロントだけ (静的配信)
    npm run dev
    ```
@@ -150,7 +146,7 @@ glossary/
 ├── env.js                 # ブラウザ読み込み用環境設定 (git管理外推奨)
 ├── script-cosmos.js       # フロントエンドスクリプト (Cosmos API 対応)
 ├── cosmos-api-server.js   # Cosmos DB バックエンド API サーバー (3001)
-├── proxy-server.js        # AI プロキシサーバー (3002)
+├── proxy-server.js        # （旧）AI プロキシサーバー（非推奨）
 ├── index.html             # メインHTML
 ├── styles.css             # スタイルシート
 ├── test-data.json         # サンプルデータ
@@ -228,9 +224,8 @@ docker compose down
 ```
 
 ### ポート
-- 8080: ゲートウェイ (静的 + /api + /api/ai-request 逆プロキシ)
+- 8080: ゲートウェイ (静的 + /api)
 - 3001: (内部) 用語集 API (Cosmos / メモリ)
-- 3002: (内部) AI プロキシサーバ
 
 Azure Container Apps では外部公開は 8080 のみを使用し、他ポートは同一コンテナ内で内部利用します。
 
@@ -260,3 +255,70 @@ docker compose restart glossary
 ```
 
 改造して nodemon を入れたい場合は dev 用 Dockerfile を別途作成して下さい。
+
+## 🌐 Azure OpenAI + Function App (用語解説 API)
+
+本リポジトリには Azure Functions (Node.js) で Azure OpenAI を呼び出す `explainTerm` エンドポイントを追加できます。
+
+### デプロイ (インフラ)
+
+1. Bicep パラメータ準備 (例):
+```bash
+az deployment group create \
+   -g <resourceGroup> \
+   -f infra/main.bicep \
+   -p namePrefix=glossa123 containerImage=<image>:<tag> cosmosPrimaryKey=<key> \
+       deployOpenAI=true openAiApiKey=<aoai-key(optional)> \
+       aiApiBaseUrl="" aiUseProxy=false
+```
+2. OpenAI モデルデプロイ (現状 CLI 別ステップ):
+```bash
+az cognitiveservices account deployment create \
+   -g <resourceGroup> \
+   -n <openAiAccountName> \
+   --deployment-name glossary-model \
+   --model-format OpenAI \
+   --model-name gpt-4o-mini \
+   --model-version 2024-07-18 \
+   --sku Standard \
+   --capacity 1
+```
+
+### Function コード配置 & 発行
+`functions/` ディレクトリで:
+```bash
+cd functions
+npm install
+func azure functionapp publish <functionAppName>
+```
+
+### API 呼び出し
+POST https://<functionAppHost>/api/explainTerm
+```json
+{
+   "term": "データレイク",
+   "context": "クラウド分析基盤",
+   "language": "ja"
+}
+```
+レスポンス例:
+```json
+{
+   "term": "データレイク",
+   "explanation": "...markdown...",
+   "model": "gpt-4o-mini",
+   "usage": { "promptTokens": 120, "completionTokens": 250 }
+}
+```
+
+### 環境変数 (Function App)
+| 名前 | 説明 |
+|------|------|
+| OPENAI_ENDPOINT | Azure OpenAI エンドポイント (https://xxx.openai.azure.com/) |
+| OPENAI_DEPLOYMENT | デプロイメント名 (glossary-model) |
+| OPENAI_API_KEY | API キー (Managed Identity へ移行予定) |
+| OPENAI_MODEL | モデル名 (gpt-4o-mini 等) |
+| OPENAI_MODEL_VERSION | モデルバージョン |
+
+将来的に Key Vault + Managed Identity へ移行しキーを除去することを推奨。
+
