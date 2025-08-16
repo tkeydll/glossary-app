@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "value": "glossary"
+    },
+    "location": {
+      "value": "japaneast"
+    },
+    "enableCosmosFreeTier": {
+      "value": true
+    },
+    "useServerless": {
+      "value": false
+    },
+    "deployFunction": {
+      "value": true
+    },
+    "openAiAccountName": {
+      "value": "glossaryaoai"
+    },
+    "openAiDeploymentName": {
+      "value": "glossary-model"
+    },
+    "openAiDisableLocalAuth": {
+      "value": false
+    },
+    "allowedDevIpAddresses": {
+      "value": [
+        "203.0.113.1/32",
+        "198.51.100.0/24"
+      ]
+    },
+    "vnetAddressSpace": {
+      "value": "10.0.0.0/16"
+    },
+    "containerAppsSubnetAddressSpace": {
+      "value": "10.0.1.0/24"
+    },
+    "privateEndpointsSubnetAddressSpace": {
+      "value": "10.0.2.0/24"
+    },
+    "cosmosDbName": {
+      "value": "glossary"
+    },
+    "cosmosContainerName": {
+      "value": "terms"
+    },
+    "cosmosContainerThroughput": {
+      "value": 400
+    },
+    "kvSku": {
+      "value": "standard"
+    },
+    "openAiApiKey": {
+      "value": ""
+    }
+  }
+}
