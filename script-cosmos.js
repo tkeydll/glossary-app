@@ -11,6 +11,9 @@
   const noTermsMessage = document.getElementById('noTermsMessage');
   const searchInput = document.getElementById('searchInput');
   const enableAIForThisTerm = document.getElementById('enableAIForThisTerm');
+  // 表示切替ボタン
+  const cardViewBtn = document.getElementById('cardViewBtn');
+  const listViewBtn = document.getElementById('listViewBtn');
 
   // 編集モーダル関連
   const editModal = document.getElementById('editModal');
@@ -25,21 +28,65 @@
   let currentTerms = [];
   let editingTermId = null;
   let searchTimer = null;
+  let viewMode = (localStorage.getItem('viewMode') === 'list') ? 'list' : 'grid';
 
   function show(el){ if(el) el.style.display='block'; }
   function hide(el){ if(el) el.style.display='none'; }
 
-  function termCard(t){
+  function nodeGrid(t){
     const div = document.createElement('div');
     div.className = 'term-card';
-    div.innerHTML = `\n      <div class="term-card-header">\n        <h3>${escapeHtml(t.name)}</h3>\n        <div class="term-meta">${t.category?`<span class="badge">${escapeHtml(t.category)}</span>`:''}</div>\n      </div>\n      <p class="description">${t.description?escapeHtml(t.description):'<em>説明なし</em>'}</p>\n      <div class="term-footer">\n        <button class="edit-btn" data-id="${t.id}">編集</button>\n        <button class="delete-btn" data-id="${t.id}">削除</button>\n      </div>`;
+    div.innerHTML = `
+      <div class="term-info">
+        <div class="term-name">${escapeHtml(t.name)}</div>
+        <div class="term-description">${t.description ? escapeHtml(t.description) : '<span class="no-description">説明なし</span>'}</div>
+      </div>
+      <div class="term-actions">
+        <button class="edit-btn" data-id="${t.id}">編集</button>
+        <button class="delete-btn" data-id="${t.id}">削除</button>
+      </div>`;
     return div;
   }
 
+  function nodeList(t){
+    const div = document.createElement('div');
+    div.className = 'term-card';
+    div.innerHTML = `
+      <div class="term-content">
+        <div class="term-info">
+          <div class="term-name">${escapeHtml(t.name)}</div>
+          <div class="term-description">${t.description ? escapeHtml(t.description) : '<span class="no-description">説明なし</span>'}</div>
+        </div>
+      </div>
+      <div class="term-actions">
+        <button class="edit-btn" data-id="${t.id}">編集</button>
+        <button class="delete-btn" data-id="${t.id}">削除</button>
+      </div>`;
+    return div;
+  }
+
+  function applyContainerClass(){
+    if(!termsList) return;
+    termsList.classList.remove('terms-grid','terms-list');
+    termsList.classList.add(viewMode === 'list' ? 'terms-list' : 'terms-grid');
+  }
+
   function render(){
+    if(!termsList) return;
+    applyContainerClass();
     termsList.innerHTML='';
     if(!currentTerms.length){ show(noTermsMessage); return; } else hide(noTermsMessage);
-    currentTerms.forEach(t=> termsList.appendChild(termCard(t)));
+    const maker = viewMode === 'list' ? nodeList : nodeGrid;
+    currentTerms.forEach(t=> termsList.appendChild(maker(t)));
+  }
+
+  function setViewMode(mode){
+    viewMode = (mode === 'list') ? 'list' : 'grid';
+    localStorage.setItem('viewMode', viewMode);
+    // ボタンの状態
+    cardViewBtn?.classList.toggle('active', viewMode === 'grid');
+    listViewBtn?.classList.toggle('active', viewMode === 'list');
+    render();
   }
 
   async function fetchTerms(){
@@ -159,8 +206,13 @@
     searchTimer = setTimeout(()=> searchTerms(q), 250);
   });
 
+  // 表示切替イベント
+  cardViewBtn?.addEventListener('click', ()=> setViewMode('grid'));
+  listViewBtn?.addEventListener('click', ()=> setViewMode('list'));
+
   function escapeHtml(str){ return str.replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c])); }
 
-  // 初回ロード
+  // 初期状態
+  setViewMode(viewMode); // ボタン状態とクラス反映
   fetchTerms().catch(e=> console.error('初期ロード失敗', e));
 })();
