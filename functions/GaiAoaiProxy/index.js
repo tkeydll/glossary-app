@@ -10,7 +10,7 @@ module.exports = async function (context, req) {
       context.res = { status: 400, body: JSON.stringify({ error: 'user_prompt is required (string)' }) };
       return;
     }
-    const systemPrompt = system_prompt || 'You are an AI that explains glossary terms clearly and concisely for professional documentation. Output in the requested language using markdown. Include: 1) 一言サマリ, 2) 詳細説明, 3) 例 (あれば), 4) 関連用語 (箇条書き). Keep it factual.';
+  const systemPrompt = system_prompt || 'あなたは用語集の説明を行うアシスタントです。出力は必ず日本語の平文のみで、Markdown、箇条書き、装飾記号は使用しないでください。対象はIT用語（ソフトウェア、ハードウェア、ネットワーク、データベース、セキュリティ、クラウド、AI、プログラミング、開発運用など）に限定します。入力がIT用語でない場合は「この用語はIT用語ではないため登録できません」とだけ返してください。IT用語の場合は事実ベースで簡潔に、次の順で説明してください。1) 一言サマリ（1文）、2) 詳細説明（2〜4文）、3) 代表例（必要時1〜2例）、4) 関連するIT用語（必要時数語）。見出しや記号は付けず、各項目は改行で区切ってください。';
     const userPrompt = user_prompt;
     const client = getOpenAIClient();
     const result = await chatCompletion(client, [
