@@ -18,7 +18,7 @@ function getOpenAIClient() {
     const scope = `${endpoint.replace(/\/$/, '')}/.default`;
     const credential = new DefaultAzureCredential();
     // getBearerTokenProvider for future streaming; simple client still uses keyless via token fetch per call
-    cachedClient = new OpenAIClient(endpoint, credential, { scopes: [scope] });
+    cachedClient = new OpenAIClient(endpoint, credential);
   }
   return cachedClient;
 }

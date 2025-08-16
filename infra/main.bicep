@@ -286,7 +286,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = if (deployFunction) {
   properties: {
     httpsOnly: true
     serverFarmId: funcPlan.id
-  reserved: true // required for Linux consumption Function Apps
+    reserved: true // required for Linux consumption Function Apps
     siteConfig: {
       appSettings: empty(openAiApiKey) ? functionBaseAppSettings : concat(functionBaseAppSettings, [
         {
