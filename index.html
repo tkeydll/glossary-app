@@ -24,6 +24,9 @@
                                 <input type="text" id="termInput" placeholder="用語を入力してください" required>
                                 <button type="submit">追加</button>
                             </div>
+                            <div class="form-group">
+                                <input type="text" id="tagsInput" placeholder="タグを入力（カンマ区切り）例: JavaScript, フロントエンド">
+                            </div>
                             <div class="form-group ai-option">
                                 <label>
                                     <input type="checkbox" id="enableAIForThisTerm" checked>
@@ -47,13 +50,19 @@
             <section class="terms-section">
                 <div class="terms-header">
                     <h2>登録済み用語</h2>
-                    <div class="view-toggle">
-                        <button id="cardViewBtn" class="view-btn active" title="カード表示">
-                            <span>🔲</span>
-                        </button>
-                        <button id="listViewBtn" class="view-btn" title="リスト表示">
-                            <span>📋</span>
-                        </button>
+                    <div class="header-controls">
+                        <div class="tag-filter">
+                            <input type="text" id="tagFilter" placeholder="タグでフィルタ...">
+                            <button id="clearTagFilter" class="clear-filter" title="フィルタをクリア">×</button>
+                        </div>
+                        <div class="view-toggle">
+                            <button id="cardViewBtn" class="view-btn active" title="カード表示">
+                                <span>🔲</span>
+                            </button>
+                            <button id="listViewBtn" class="view-btn" title="リスト表示">
+                                <span>📋</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div id="termsList" class="terms-grid">
@@ -80,7 +89,12 @@
                         <div class="form-group">
                             <label for="editTermName">用語名</label>
                             <input type="text" id="editTermName" readonly>
-                        </div>                        <div class="form-group">
+                        </div>
+                        <div class="form-group">
+                            <label for="editTermTags">タグ</label>
+                            <input type="text" id="editTermTags" placeholder="タグを入力（カンマ区切り）例: JavaScript, フロントエンド">
+                        </div>
+                        <div class="form-group">
                             <label for="editTermDescription">解説</label>
                             <textarea id="editTermDescription" rows="6" placeholder="この用語の解説を入力してください..."></textarea>
                             <button type="button" id="regenerateAI" class="ai-button">🤖 AI解説を再生成</button>

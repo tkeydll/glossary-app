@@ -6,10 +6,13 @@
 
   // DOM 取得
   const termInput = document.getElementById('termInput');
+  const tagsInput = document.getElementById('tagsInput');
   const addForm = document.getElementById('addTermForm');
   const termsList = document.getElementById('termsList');
   const noTermsMessage = document.getElementById('noTermsMessage');
   const searchInput = document.getElementById('searchInput');
+  const tagFilter = document.getElementById('tagFilter');
+  const clearTagFilter = document.getElementById('clearTagFilter');
   const enableAIForThisTerm = document.getElementById('enableAIForThisTerm');
   // 表示切替ボタン
   const cardViewBtn = document.getElementById('cardViewBtn');
@@ -18,6 +21,7 @@
   // 編集モーダル関連
   const editModal = document.getElementById('editModal');
   const editTermName = document.getElementById('editTermName');
+  const editTermTags = document.getElementById('editTermTags');
   const editTermDescription = document.getElementById('editTermDescription');
   const editTermForm = document.getElementById('editTermForm');
   const deleteTermBtn = document.getElementById('deleteTerm');
@@ -26,20 +30,45 @@
   const cancelEditBtn = document.getElementById('cancelEdit');
 
   let currentTerms = [];
+  let filteredTerms = [];
   let editingTermId = null;
   let searchTimer = null;
+  let tagFilterTimer = null;
   let viewMode = (localStorage.getItem('viewMode') === 'list') ? 'list' : 'grid';
 
   function show(el){ if(el) el.style.display='block'; }
   function hide(el){ if(el) el.style.display='none'; }
 
+  // タグ関連のヘルパー関数
+  function parseTagsFromCategory(category) {
+    if (!category) return [];
+    return category.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+  }
+
+  function formatTagsToCategory(tags) {
+    if (!Array.isArray(tags)) return '';
+    return tags.filter(tag => tag.trim().length > 0).map(tag => tag.trim()).join(', ');
+  }
+
+  function parseTagsFromInput(input) {
+    if (!input) return [];
+    return input.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+  }
+
+  function renderTags(tags) {
+    if (!tags || tags.length === 0) return '';
+    return tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('');
+  }
+
   function nodeGrid(t){
     const div = document.createElement('div');
     div.className = 'term-card';
+    const tags = parseTagsFromCategory(t.category);
     div.innerHTML = `
       <div class="term-info">
         <div class="term-name">${escapeHtml(t.name)}</div>
         <div class="term-description">${t.description ? escapeHtml(t.description) : '<span class="no-description">説明なし</span>'}</div>
+        ${tags.length > 0 ? `<div class="term-tags">${renderTags(tags)}</div>` : ''}
       </div>
       <div class="term-actions">
         <button class="edit-btn" data-id="${t.id}">編集</button>
@@ -51,11 +80,13 @@
   function nodeList(t){
     const div = document.createElement('div');
     div.className = 'term-card';
+    const tags = parseTagsFromCategory(t.category);
     div.innerHTML = `
       <div class="term-content">
         <div class="term-info">
           <div class="term-name">${escapeHtml(t.name)}</div>
           <div class="term-description">${t.description ? escapeHtml(t.description) : '<span class="no-description">説明なし</span>'}</div>
+          ${tags.length > 0 ? `<div class="term-tags">${renderTags(tags)}</div>` : ''}
         </div>
       </div>
       <div class="term-actions">
@@ -75,9 +106,35 @@
     if(!termsList) return;
     applyContainerClass();
     termsList.innerHTML='';
-    if(!currentTerms.length){ show(noTermsMessage); return; } else hide(noTermsMessage);
+    const termsToRender = filteredTerms.length > 0 || tagFilter?.value || searchInput?.value ? filteredTerms : currentTerms;
+    if(!termsToRender.length){ show(noTermsMessage); return; } else hide(noTermsMessage);
     const maker = viewMode === 'list' ? nodeList : nodeGrid;
-    currentTerms.forEach(t=> termsList.appendChild(maker(t)));
+    termsToRender.forEach(t=> termsList.appendChild(maker(t)));
+  }
+
+  function applyFilters(){
+    let filtered = [...currentTerms];
+    
+    // 検索フィルタ
+    const searchQuery = searchInput?.value?.trim()?.toLowerCase();
+    if (searchQuery) {
+      filtered = filtered.filter(t => 
+        t.name.toLowerCase().includes(searchQuery) || 
+        t.description.toLowerCase().includes(searchQuery)
+      );
+    }
+    
+    // タグフィルタ
+    const tagQuery = tagFilter?.value?.trim()?.toLowerCase();
+    if (tagQuery) {
+      filtered = filtered.filter(t => {
+        const tags = parseTagsFromCategory(t.category);
+        return tags.some(tag => tag.toLowerCase().includes(tagQuery));
+      });
+    }
+    
+    filteredTerms = filtered;
+    render();
   }
 
   function setViewMode(mode){
@@ -93,17 +150,18 @@
     const res = await fetch(`${apiBase}/terms`);
     const data = await res.json();
     currentTerms = (data.terms||[]).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
-    render();
+    applyFilters();
   }
 
-  async function addTerm(name){
-    const body = { name };
+  async function addTerm(name, tags = []){
+    const category = formatTagsToCategory(tags);
+    const body = { name, category };
     const res = await fetch(`${apiBase}/terms`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if(!res.ok){ const e = await res.json().catch(()=>({})); throw new Error(e.message || '追加失敗'); }
     const { term } = await res.json();
     currentTerms.push(term);
     currentTerms.sort((a,b)=>a.name.localeCompare(b.name,'ja'));
-    render();
+    applyFilters();
     if(enableAIForThisTerm && enableAIForThisTerm.checked && window.AI_API_CONFIG?.enableAIExplanation){
       try { await generateAIExplanation(term.id, term.name); } catch(e){ console.warn('AI生成失敗', e); }
     }
@@ -113,21 +171,18 @@
     const res = await fetch(`${apiBase}/terms/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ description, category })});
     if(!res.ok){ const e = await res.json().catch(()=>({})); throw new Error(e.message||'更新失敗'); }
     const { term } = await res.json();
-    const idx = currentTerms.findIndex(t=>t.id===id); if(idx>-1) currentTerms[idx]=term; render();
+    const idx = currentTerms.findIndex(t=>t.id===id); if(idx>-1) currentTerms[idx]=term; applyFilters();
   }
 
   async function deleteTerm(id){
     const res = await fetch(`${apiBase}/terms/${id}`, { method:'DELETE' });
     if(res.status!==204){ console.warn('削除失敗?'); }
-    currentTerms = currentTerms.filter(t=>t.id!==id); render();
+    currentTerms = currentTerms.filter(t=>t.id!==id); applyFilters();
   }
 
   async function searchTerms(q){
-    if(!q){ return fetchTerms(); }
-    const res = await fetch(`${apiBase}/search?q=${encodeURIComponent(q)}`);
-    const data = await res.json();
-    currentTerms = (data.terms||[]).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
-    render();
+    // We'll use local filtering instead of server-side search for better tag integration
+    applyFilters();
   }
 
   async function generateAIExplanation(id, name){
@@ -163,10 +218,15 @@
   // Event Listeners
   addForm?.addEventListener('submit', async (e)=>{
     e.preventDefault();
-    const v = termInput.value.trim();
-    if(!v) return;
+    const name = termInput.value.trim();
+    const tags = parseTagsFromInput(tagsInput?.value || '');
+    if(!name) return;
     termInput.disabled = true;
-    try { await addTerm(v); termInput.value=''; }
+    try { 
+      await addTerm(name, tags); 
+      termInput.value=''; 
+      if(tagsInput) tagsInput.value = '';
+    }
     catch(err){ alert(err.message); }
     finally { termInput.disabled=false; }
   });
@@ -179,6 +239,10 @@
       editingTermId = id;
       editTermName.value = term.name;
       editTermDescription.value = term.description || '';
+      if(editTermTags) {
+        const tags = parseTagsFromCategory(term.category);
+        editTermTags.value = tags.join(', ');
+      }
       show(editModal);
     } else if(btn.classList.contains('delete-btn')){
       if(confirm('本当に削除しますか?')) deleteTerm(id); }
@@ -187,7 +251,9 @@
   editTermForm?.addEventListener('submit', async (e)=>{
     e.preventDefault();
     if(!editingTermId) return;
-    try { await updateTerm(editingTermId, { description: editTermDescription.value, category: '' }); hide(editModal); }
+    const tags = parseTagsFromInput(editTermTags?.value || '');
+    const category = formatTagsToCategory(tags);
+    try { await updateTerm(editingTermId, { description: editTermDescription.value, category }); hide(editModal); }
     catch(err){ alert(err.message); }
   });
 
@@ -203,8 +269,17 @@
 
   searchInput?.addEventListener('input', ()=>{
     clearTimeout(searchTimer);
-    const q = searchInput.value;
-    searchTimer = setTimeout(()=> searchTerms(q), 250);
+    searchTimer = setTimeout(()=> applyFilters(), 250);
+  });
+
+  tagFilter?.addEventListener('input', ()=>{
+    clearTimeout(tagFilterTimer);
+    tagFilterTimer = setTimeout(()=> applyFilters(), 250);
+  });
+
+  clearTagFilter?.addEventListener('click', ()=>{
+    if(tagFilter) tagFilter.value = '';
+    applyFilters();
   });
 
   // 表示切替イベント
