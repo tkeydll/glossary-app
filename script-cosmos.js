@@ -60,6 +60,28 @@
     return tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('');
   }
 
+  // 用語名から自動タグ候補を生成（記号区切りやスペースで分割し、短すぎるものは除外）
+  function suggestTagsFromTerm(name) {
+    if (!name) return [];
+    const raw = String(name).trim();
+    // 分割: カンマ/スペース/スラッシュ/ハイフン/コロン/全角スペース/全角記号 等
+    const parts = raw
+      .split(/[\s,、／\/\-:：・]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    // 2文字以上の要素のみ（英数字は2+, 日本語は1+でも可だがまずは2+に統一）
+    const filtered = parts.filter(p => p.length >= 2);
+    // 重複排除（大文字小文字無視）
+    const seen = new Set();
+    const uniq = [];
+    for (const p of filtered) {
+      const key = p.toLowerCase();
+      if (!seen.has(key)) { seen.add(key); uniq.push(p); }
+    }
+    // 何も残らなければフルの用語名をタグとして1つ返す
+    return uniq.length ? uniq.slice(0, 5) : [raw];
+  }
+
   function nodeGrid(t){
     const div = document.createElement('div');
     div.className = 'term-card';
@@ -211,7 +233,17 @@
       }
       const data = await res.json();
       const text = data.explanation || data.output || data.text || '';
-      if(text){ await updateTerm(id, { description: text, category: '' }); }
+      if(text){
+        // 既存カテゴリーを保持。未設定なら用語名から自動タグを生成して設定
+        const cur = currentTerms.find(t => t.id === id);
+        const existingCategory = (cur?.category || '').trim();
+        let category = existingCategory;
+        if (!category) {
+          const autoTags = suggestTagsFromTerm(name);
+          category = formatTagsToCategory(autoTags);
+        }
+        await updateTerm(id, { description: text, category });
+      }
     } catch(e){ console.warn('AI説明生成エラー', e.message); }
   }
 
@@ -219,8 +251,13 @@
   addForm?.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const name = termInput.value.trim();
-    const tags = parseTagsFromInput(tagsInput?.value || '');
+    let tags = parseTagsFromInput(tagsInput?.value || '');
     if(!name) return;
+    // AI解説チェックONかつタグ未入力なら、用語名から自動タグを補完
+    if ((enableAIForThisTerm?.checked) && tags.length === 0) {
+      tags = suggestTagsFromTerm(name);
+      if (tagsInput) tagsInput.value = tags.join(', ');
+    }
     termInput.disabled = true;
     try { 
       await addTerm(name, tags); 
@@ -262,7 +299,18 @@
   });
 
   regenerateAIBtn?.addEventListener('click', async ()=>{
-    if(!editingTermId) return; const term = currentTerms.find(t=>t.id===editingTermId); if(!term) return; editTermDescription.value='(AI生成中...)'; await generateAIExplanation(term.id, term.name); const refreshed = currentTerms.find(t=>t.id===term.id); editTermDescription.value = refreshed?.description || ''; });
+    if(!editingTermId) return;
+    const term = currentTerms.find(t=>t.id===editingTermId); if(!term) return;
+    editTermDescription.value='(AI生成中...)';
+    await generateAIExplanation(term.id, term.name);
+    const refreshed = currentTerms.find(t=>t.id===term.id);
+    editTermDescription.value = refreshed?.description || '';
+    // カテゴリ（タグ）が自動設定された場合、編集UIにも反映
+    if (editTermTags && refreshed) {
+      const tags = parseTagsFromCategory(refreshed.category);
+      editTermTags.value = tags.join(', ');
+    }
+  });
 
   closeModalBtn?.addEventListener('click', ()=> hide(editModal));
   cancelEditBtn?.addEventListener('click', ()=> hide(editModal));
